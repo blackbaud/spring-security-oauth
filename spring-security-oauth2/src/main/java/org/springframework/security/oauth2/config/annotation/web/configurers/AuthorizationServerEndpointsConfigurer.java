@@ -66,6 +66,7 @@ import org.springframework.security.oauth2.provider.token.ConsumerTokenServices;
 import org.springframework.security.oauth2.provider.token.DefaultAccessTokenConverter;
 import org.springframework.security.oauth2.provider.token.DefaultTokenServices;
 import org.springframework.security.oauth2.provider.token.ResourceServerTokenServices;
+import org.springframework.security.oauth2.provider.token.RetryTokenServices;
 import org.springframework.security.oauth2.provider.token.TokenEnhancer;
 import org.springframework.security.oauth2.provider.token.TokenStore;
 import org.springframework.security.oauth2.provider.token.store.InMemoryTokenStore;
@@ -405,7 +406,7 @@ public final class AuthorizationServerEndpointsConfigurer {
 	}
 
 	private DefaultTokenServices createDefaultTokenServices() {
-		DefaultTokenServices tokenServices = new DefaultTokenServices();
+		DefaultTokenServices tokenServices = new RetryTokenServices();
 		tokenServices.setTokenStore(tokenStore());
 		tokenServices.setSupportRefreshToken(true);
 		tokenServices.setReuseRefreshToken(reuseRefreshToken);

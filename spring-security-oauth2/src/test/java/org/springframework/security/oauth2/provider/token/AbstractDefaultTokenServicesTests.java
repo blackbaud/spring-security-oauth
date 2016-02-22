@@ -50,6 +50,7 @@ import org.springframework.security.oauth2.provider.client.BaseClientDetails;
 public abstract class AbstractDefaultTokenServicesTests {
 
 	private DefaultTokenServices services;
+	private DefaultTokenServices retryServices;
 
 	private TokenStore tokenStore;
 
@@ -57,7 +58,9 @@ public abstract class AbstractDefaultTokenServicesTests {
 	public void setUp() throws Exception {
 		tokenStore = createTokenStore();
 		services = new DefaultTokenServices();
+		retryServices = new RetryTokenServices();
 		configureTokenServices(services);
+		configureTokenServices(retryServices);
 	}
 
 	@Test
@@ -224,6 +227,10 @@ public abstract class AbstractDefaultTokenServicesTests {
 
 	protected DefaultTokenServices getTokenServices() {
 		return services;
+	}
+
+	protected DefaultTokenServices getRetryTokenServices() {
+		return retryServices;
 	}
 
 	protected static class TestAuthentication extends AbstractAuthenticationToken {

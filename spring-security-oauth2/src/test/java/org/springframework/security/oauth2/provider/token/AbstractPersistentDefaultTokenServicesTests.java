@@ -4,8 +4,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.Test;
 import org.springframework.security.oauth2.common.DefaultExpiringOAuth2RefreshToken;
@@ -87,6 +94,34 @@ public abstract class AbstractPersistentDefaultTokenServicesTests extends Abstra
 								Collections.singleton("write")), new TestAuthentication(
 								"test2", false)));
 		assertEquals(2, getAccessTokenCount());
+	}
+
+	@Test
+	public void testOneAccessTokenPerAuthenticationInMultipleRequests() throws InterruptedException, ExecutionException {
+		Callable<OAuth2AccessToken> task = new Callable<OAuth2AccessToken>() {
+			@Override
+			public OAuth2AccessToken call() {
+				OAuth2Authentication authentication = new OAuth2Authentication(RequestTokenFactory.createOAuth2Request("id", false,
+																														Collections.singleton("read,write")), new TestAuthentication("test2",
+																																													 false));
+				return getRetryTokenServices()
+						.createAccessToken(
+								authentication);
+			}
+		};
+		int numberOfTasks = 75;
+		List<Callable<OAuth2AccessToken>> tasks = Collections.nCopies(numberOfTasks, task);
+		ExecutorService executorService = Executors.newFixedThreadPool(2);
+		List<Future<OAuth2AccessToken>> futures = executorService.invokeAll(tasks);
+		List<OAuth2AccessToken> resultList = new ArrayList<OAuth2AccessToken>(futures.size());
+		for (Future<OAuth2AccessToken> future : futures) {
+			resultList.add(future.get());
+		}
+		assertEquals(numberOfTasks, resultList.size());
+		OAuth2AccessToken oAuth2AccessToken = resultList.get(0);
+		for (OAuth2AccessToken token : resultList) {
+			assertEquals(oAuth2AccessToken, token);
+		}
 	}
 
 	@Test
