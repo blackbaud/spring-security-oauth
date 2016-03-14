@@ -2,12 +2,20 @@ package sparklr.common;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.Test;
 import org.springframework.http.HttpHeaders;
@@ -56,6 +64,36 @@ public abstract class AbstractClientCredentialsProviderTests extends AbstractInt
 	public void testPostForToken() throws Exception {
 		OAuth2AccessToken token = context.getAccessToken();
 		assertNull(token.getRefreshToken());
+	}
+
+	/**
+	 * tests the basic provider concurrently
+	 */
+	@Test
+	@OAuth2ContextConfiguration(resource = ClientCredentials.class, initialize = false)
+	public void testPostForTokenConcurrent() throws Exception {
+		Callable<OAuth2AccessToken> task = new Callable<OAuth2AccessToken>() {
+			@Override
+			public OAuth2AccessToken call() {
+				return context.getAccessToken();
+			}
+		};
+		List<Callable<OAuth2AccessToken>> tasks = Collections.nCopies(20, task);
+		ExecutorService executorService = Executors.newFixedThreadPool(2);
+		List<Future<OAuth2AccessToken>> futures = executorService.invokeAll(tasks);
+		List<OAuth2AccessToken> resultList = new ArrayList<>(futures.size());
+		List<Exception> exceptions = new ArrayList<>(futures.size());
+		for (Future<OAuth2AccessToken> future : futures) {
+			try {
+				resultList.add(future.get());
+			} catch (Exception e) {
+				exceptions.add(e);
+			}
+		}
+		assertNotEquals(0, exceptions.size());
+		for (Exception exception : exceptions) {
+			assertTrue(exception.getMessage().contains("Unique index or primary key violation: \"PRIMARY_KEY_D ON PUBLIC.OAUTH_ACCESS_TOKEN(AUTHENTICATION_ID)"));
+		}
 	}
 
 	/**

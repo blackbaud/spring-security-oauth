@@ -1,13 +1,16 @@
 package org.springframework.security.oauth2.provider.token;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.Test;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.oauth2.common.DefaultExpiringOAuth2RefreshToken;
 import org.springframework.security.oauth2.common.DefaultOAuth2AccessToken;
 import org.springframework.security.oauth2.common.ExpiringOAuth2RefreshToken;
@@ -17,9 +20,11 @@ import org.springframework.security.oauth2.provider.OAuth2Authentication;
 import org.springframework.security.oauth2.provider.RequestTokenFactory;
 import org.springframework.security.oauth2.provider.TokenRequest;
 
+import static org.junit.Assert.*;
+
 /**
  * @author Dave Syer
- * 
+ *
  */
 public abstract class AbstractPersistentDefaultTokenServicesTests extends AbstractDefaultTokenServicesTests {
 
@@ -87,6 +92,37 @@ public abstract class AbstractPersistentDefaultTokenServicesTests extends Abstra
 								Collections.singleton("write")), new TestAuthentication(
 								"test2", false)));
 		assertEquals(2, getAccessTokenCount());
+	}
+
+	@Test
+	public void testOneAccessTokenPerUniqueAuthenticationConcurrent() throws Exception {
+		Callable<OAuth2AccessToken> task = new Callable<OAuth2AccessToken>() {
+			@Override
+			public OAuth2AccessToken call() {
+				OAuth2Authentication authentication1 = new OAuth2Authentication(
+						RequestTokenFactory.createOAuth2Request("id", false,
+								Collections.singleton("read,write")), new TestAuthentication("test2", false));
+				return getTokenServices()
+						.createAccessToken(
+								authentication1);
+			}
+		};
+		List<Callable<OAuth2AccessToken>> tasks = Collections.nCopies(20, task);
+		ExecutorService executorService = Executors.newFixedThreadPool(2);
+		List<Future<OAuth2AccessToken>> futures = executorService.invokeAll(tasks);
+		List<OAuth2AccessToken> resultList = new ArrayList<OAuth2AccessToken>(futures.size());
+		List<Exception> exceptions = new ArrayList<Exception>(futures.size());
+		for (Future<OAuth2AccessToken> future : futures) {
+			try {
+				resultList.add(future.get());
+			} catch (Exception e) {
+				exceptions.add(e);
+			}
+		}
+		assertNotEquals(0, exceptions.size());
+		for (Exception exception : exceptions) {
+			assertEquals(DuplicateKeyException.class, exception.getCause().getClass());
+		}
 	}
 
 	@Test
